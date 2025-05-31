@@ -125,6 +125,7 @@ def build_heme_assembly(
         ],
         deltahedron_name=row["deltahedron_name"],
     )
+    assembly.optimise_helix_rotations(degree_turn=5)
 
     def compute_rib_center(assembly: DeltaProt, v1, v2) -> None:
         """
