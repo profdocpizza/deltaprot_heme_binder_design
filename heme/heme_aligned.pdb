@@ -1,0 +1,46 @@
+HEADER ISAMBARD Model heme                                                             
+HETATM    1  CAA HEM D 201       2.911   4.997  -0.199  1.00 28.08           C  
+HETATM    2  CAB HEM D 201       2.722  -5.092  -0.379  1.00 26.09           C  
+HETATM    3  CAC HEM D 201      -4.969  -2.558  -0.198  1.00 34.19           C  
+HETATM    4  CAD HEM D 201      -2.684   5.157  -0.385  1.00 42.56           C  
+HETATM    5  NA  HEM D 201       1.413   1.342  -0.343  1.00 34.50           N  
+HETATM    6  CBA HEM D 201       3.102   5.363  -1.688  1.00 45.20           C  
+HETATM    7  CBB HEM D 201       1.901  -5.797  -1.110  1.00 31.42           C  
+HETATM    8  CBC HEM D 201      -5.533  -2.575  -1.377  1.00 36.42           C  
+HETATM    9  CBD HEM D 201      -2.278   5.588  -1.785  1.00 51.42           C  
+HETATM   10  NB  HEM D 201       1.516  -1.487  -0.158  1.00 30.48           N  
+HETATM   11  CGA HEM D 201       3.864   6.663  -1.990  1.00 51.78           C  
+HETATM   12  CGD HEM D 201      -1.978   7.050  -1.677  1.00 73.65           C  
+HETATM   13  ND  HEM D 201      -1.440   1.541  -0.197  1.00 38.84           N  
+HETATM   14  CHA HEM D 201       0.034   3.482  -0.336  1.00 32.47           C  
+HETATM   15  CHB HEM D 201       3.496  -0.119  -0.041  1.00 27.68           C  
+HETATM   16  CHC HEM D 201       0.034  -3.429  -0.336  1.00 26.21           C  
+HETATM   17  CHD HEM D 201      -3.468   0.133  -0.117  1.00 36.67           C  
+HETATM   18  CMA HEM D 201       5.069   2.567   0.021  1.00 29.05           C  
+HETATM   19  CMB HEM D 201       5.120  -2.917  -0.245  1.00 25.16           C  
+HETATM   20  CMC HEM D 201      -2.744  -5.007  -0.337  1.00 25.08           C  
+HETATM   21  CMD HEM D 201      -5.086   2.845  -0.221  1.00 39.45           C  
+HETATM   22  C1A HEM D 201       1.297   2.789  -0.246  1.00 31.68           C  
+HETATM   23  C1B HEM D 201       2.853  -1.392  -0.105  1.00 27.90           C  
+HETATM   24  C1C HEM D 201      -1.226  -2.768  -0.289  1.00 29.76           C  
+HETATM   25  C1D HEM D 201      -2.794   1.411  -0.137  1.00 42.06           C  
+HETATM   26  O1A HEM D 201       4.505   7.262  -1.102  1.00 35.39           O  
+HETATM   27  O1D HEM D 201      -0.832   7.400  -1.244  1.00 54.42           O  
+HETATM   28  C2A HEM D 201       2.604   3.514  -0.191  1.00 30.32           C  
+HETATM   29  C2B HEM D 201       3.644  -2.652  -0.219  1.00 29.53           C  
+HETATM   30  C2C HEM D 201      -2.527  -3.523  -0.297  1.00 32.00           C  
+HETATM   31  C2D HEM D 201      -3.587   2.657  -0.213  1.00 42.82           C  
+HETATM   32  O2A HEM D 201       3.841   7.098  -3.161  1.00 58.36           O  
+HETATM   33  O2D HEM D 201      -2.926   7.818  -1.999  1.00 66.61           O  
+HETATM   34  C3A HEM D 201       3.593   2.422  -0.095  1.00 29.78           C  
+HETATM   35  C3B HEM D 201       2.563  -3.622  -0.289  1.00 30.39           C  
+HETATM   36  C3C HEM D 201      -3.504  -2.439  -0.230  1.00 32.02           C  
+HETATM   37  C3D HEM D 201      -2.528   3.669  -0.275  1.00 41.16           C  
+HETATM   38  C4A HEM D 201       2.818   1.157  -0.069  1.00 31.72           C  
+HETATM   39  C4B HEM D 201       1.328  -2.822  -0.235  1.00 25.32           C  
+HETATM   40  C4C HEM D 201      -2.788  -1.154  -0.199  1.00 34.26           C  
+HETATM   41  C4D HEM D 201      -1.275   2.870  -0.230  1.00 32.44           C  
+HETATM   42  NC  HEM D 201      -1.378  -1.342  -0.403  1.00 32.24           N  
+HETATM   43 FE   HEM D 201       0.000   0.000   0.000  1.00 29.55          FE  
+TER                                                                             
+END                                                                             

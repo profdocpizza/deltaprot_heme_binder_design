@@ -1,0 +1,37 @@
+params:
+
+  n_orientations: 30
+  n_best_paths: 1
+  n_flips: 1
+  yaw_angles: [-100, -80, -60, -40, -20, 0, 20, 40, 60, 80, 100]
+  radius_distances: [0, -2, -4, -6]
+  deltahedron_sizes: [12]
+  residues_per_helix: [8]
+  loop_lengths: [8, 9, 10, 11, 12, 13]
+
+ligand:
+  name: "heme"
+  raw_file_path: "/home/tadas/code/deltaprot_heme_binder_design/heme/heme.pdb" 
+  file_path: "/home/tadas/code/deltaprot_heme_binder_design/heme/heme_aligned.pdb" # will be generated
+  radius_axis: y
+  yaw_axis: z
+
+
+
+dirs:
+  path_choice_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs/1_path_choices"
+  assembly_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs/2_assemblies"
+  diffusion_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs/3_diffusion"
+  # sequence_prediction_output_dir: "/home/tadas/code/poreBinderDesign/pipeline_outputs/sequence_prediction/"
+  # structure_prediction_output_dir: "/home/tadas/code/poreBinderDesign/pipeline_outputs/structure_prediction/"
+  # analysis_output_dir: "/home/tadas/code/poreBinderDesign/pipeline_outputs/analysis/"
+  # design_selection_1_dir: "/home/tadas/code/poreBinderDesign/pipeline_outputs/design_selection_1/"
+
+install_dirs: 
+  rf_diffusion: "/home/tadas/code/RFdiffusion"
+  deltaProteins: "/home/tadas/deltaProteins" # repository root folder
+  proteinmpnn: "/home/tadas/code/ProteinMPNN" # 
+  timed: "/home/tadas/bin/timed-design"
+  # alphafold2: "/home/tadas/bin/alphafold2"
+  # omegafold: "/home/tadas/bin/omegafold"
+  tm_align: "/home/tadas/bin/TMalign" # folder that contains TMalign executable
