@@ -18,14 +18,16 @@ ligand:
 
 
 
-dirs:
+directories:
   path_choice_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs/1_path_choices"
   assembly_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs/2_assemblies"
-  diffusion_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs/3_diffusion"
-  # sequence_prediction_output_dir: "/home/tadas/code/poreBinderDesign/pipeline_outputs/sequence_prediction/"
-  # structure_prediction_output_dir: "/home/tadas/code/poreBinderDesign/pipeline_outputs/structure_prediction/"
-  # analysis_output_dir: "/home/tadas/code/poreBinderDesign/pipeline_outputs/analysis/"
-  # design_selection_1_dir: "/home/tadas/code/poreBinderDesign/pipeline_outputs/design_selection_1/"
+  rf_diffusion_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/3_diffusion"
+  seq_pred_inputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/4_sequence_prediction/fixed_inputs"
+  seq_pred_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/4_sequence_prediction/"
+
+  # structure_prediction_output_dir: "pipeline_outputs/structure_prediction/"
+  # analysis_output_dir: "pipeline_outputs/analysis/"
+  # design_selection_1_dir: "pipeline_outputs/design_selection_1/"
 
 install_dirs: 
   rf_diffusion: "/home/tadas/code/RFdiffusion"

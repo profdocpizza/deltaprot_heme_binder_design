@@ -32,8 +32,8 @@ def make_pipeline_dirs():
     """
     Create necessary directories for the pipeline.ask user for confirmation
     """
-    dirs = pipeline_data["dirs"]
-    for dir_path in dirs.values():
+    directories = pipeline_data["directories"]
+    for dir_path in directories.values():
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
             print(f"Created directory: {dir_path}")
@@ -110,7 +110,7 @@ def build_heme_assemblies(paths_df, combinations):
 def build_heme_assembly(
     row, yaw, radius, deltahedron_size, residues_per_helix, linker_length
 ):
-    save_dir = pipeline_data["dirs"]["assembly_output_dir"]
+    save_dir = pipeline_data["directories"]["assembly_output_dir"]
 
     filename = f"{row['orientation_code'].replace('.', '_')}_yaw{yaw}_rad{radius}_delt{deltahedron_size}_helix{residues_per_helix}_link{linker_length}.pdb"
     file_path = os.path.join(save_dir, filename)
@@ -389,7 +389,7 @@ def get_rib_align_transform(assembly, rib_vertices=(8, 11)):
     return R.T
 
 
-def generate_inference_lines(folder_path, output_script_path):
+def generate_rfdiffusionaa_inference_lines(folder_path, output_script_path):
     seen_lines = set()
     output_lines = []
 
@@ -430,7 +430,7 @@ def generate_inference_lines(folder_path, output_script_path):
 
         pdb_path = os.path.join(folder_path, fname)
         output_prefix = os.path.join(
-            pipeline_data["dirs"]["diffusion_output_dir"],
+            pipeline_data["directories"]["rf_diffusion_outputs"],
             "outputs",
             fname.replace(".pdb", ""),
         )
