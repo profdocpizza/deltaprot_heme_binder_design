@@ -24,8 +24,8 @@ directories:
   rf_diffusion_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/3_diffusion"
   seq_pred_inputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/4_sequence_prediction/fixed_inputs"
   seq_pred_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/4_sequence_prediction/"
-
-  # structure_prediction_output_dir: "pipeline_outputs/structure_prediction/"
+  str_pred_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/5_structure_prediction/"
+  evaluation: "/home/tadas/code/deltaprot_heme_binder_design/outputs/6_evaluation"
   # analysis_output_dir: "pipeline_outputs/analysis/"
   # design_selection_1_dir: "pipeline_outputs/design_selection_1/"
 
