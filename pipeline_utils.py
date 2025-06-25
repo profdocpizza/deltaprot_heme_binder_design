@@ -46,10 +46,14 @@ make_pipeline_dirs()
 
 def parse_filename(filename):
     pattern = re.compile(
-        r"^(?P<orientation_code>.+?)_yaw(?P<yaw>-?\d+)"
-        r"_rad(?P<radius>-?\d+)_delt(?P<deltahedron_size>\d+)"
-        r"_helix(?P<residues_per_helix>\d+)_link(?P<linker_length>\d+)\.pdb$"
-    )
+    r"^"
+    r"(?P<orientation_code>.+?)"
+    r"_yaw(?P<yaw>-?\d+)"
+    r"_rad(?P<radius>-?\d+)"
+    r"_delt(?P<deltahedron_size>\d+)"
+    r"_helix(?P<residues_per_helix>\d+)"
+    r"_link(?P<linker_length>\d+)"
+)
     match = pattern.match(filename)
     if not match:
         raise ValueError(f"Filename does not match expected pattern: {filename}")
