@@ -191,10 +191,10 @@ def align_all_structures(pdb_path_df: pd.DataFrame,
         # optionally save a PyMOL session
         if rmsd_fh<1.5 and rmsd_fe<1.5:
             pdbs = {
-                'reference': asm.make_pdb(ligands=False),
-                'diffusion': diff.make_pdb(ligands=False),
-                'fold_HEM' : foldH.make_pdb(ligands=False),
-                'fold_no_lig': foldN.make_pdb(ligands=False),
+                'reference': asm.make_pdb(),
+                'diffusion': diff.make_pdb(),
+                'fold_HEM' : foldH.make_pdb(),
+                'fold_no_lig': foldN.make_pdb(),
             }
             pse_path = Path(output_dir)/ "aligned_pse" / f"{seq}.pse"
             os.makedirs(pse_path.parent, exist_ok=True)

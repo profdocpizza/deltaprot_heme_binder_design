@@ -1,4 +1,5 @@
 import re
+import pandas as pd
 import yaml
 
 from isambard.specifications.deltaprot import HelixConformation
@@ -462,3 +463,63 @@ def generate_rfdiffusionaa_inference_lines(folder_path, output_script_path):
             f.write(line + "\n")
 
     print(f"Written {len(output_lines)} unique commands to {output_script_path}")
+
+
+def load_design_df(evaluation_dir):
+    # load design_df
+    design_df = pd.read_csv(os.path.join(evaluation_dir, "design_df.csv"))
+
+    # load boltz2_info.csv and merge by sequence_name
+    boltz2_df = pd.read_csv(os.path.join(evaluation_dir, "boltz2_info.csv"))
+    # add prefix boltz2_ to all columns except sequence_name
+    boltz2_df.columns = [
+        f"boltz2_{col}" if col != "sequence_name" else col for col in boltz2_df.columns
+    ]
+    # merge design_df with boltz2_df on sequence_name
+
+    design_df = design_df.merge(
+        boltz2_df,
+        on="sequence_name",
+        how="left",
+        suffixes=("", "_duplicate"),
+    )
+    # load rmsd_df.csv
+    design_df = design_df.merge(
+        pd.read_csv(os.path.join(evaluation_dir, "rmsd_df.csv")),
+        on="sequence_name",
+        how="left",
+        suffixes=("", "_duplicate2"),
+    )
+    # load dp_finder_results_HEM.pkl
+
+
+    dp_finder_results_HEM_df = pd.read_pickle(os.path.join(evaluation_dir, "dp_finder_results_HEM.pkl"))
+    dp_finder_results_no_lig_df = pd.read_pickle(os.path.join(evaluation_dir, "dp_finder_results_no_lig.pkl"))
+    # generate sequence_name column for both dfs from filename by removing _model_0.pdb
+    dp_finder_results_HEM_df["sequence_name"] = dp_finder_results_HEM_df["filename"].str.replace("_model_0.pdb", "")
+    dp_finder_results_no_lig_df["sequence_name"] = dp_finder_results_no_lig_df["filename"].str.replace("_model_0.pdb", "")
+    # drop filename column from both dfs
+    dp_finder_results_HEM_df.drop(columns=["filename"], inplace=True)
+    dp_finder_results_no_lig_df.drop(columns=["filename"], inplace=True)
+    # add prefix dp_finder_ to all columns of both dfs
+    dp_finder_results_HEM_df.columns = [
+        f"dp_finder_{col}" if col != "sequence_name" else col for col in dp_finder_results_HEM_df.columns
+    ]
+    dp_finder_results_no_lig_df.columns = [
+        f"dp_finder_{col}" if col != "sequence_name" else col for col in dp_finder_results_no_lig_df.columns
+    ]
+    # add prefix no_lig_ to all columns of  dp_finder_results_no_lig_df
+    dp_finder_results_no_lig_df.columns = [
+        f"no_lig_{col}" if col != "sequence_name" else col for col in dp_finder_results_no_lig_df.columns
+    ]
+    # merge by sequence_name
+    design_df = design_df.merge(dp_finder_results_HEM_df, on="sequence_name", how="left", suffixes=("", "_duplicate3"))
+    design_df = design_df.merge(dp_finder_results_no_lig_df, on="sequence_name", how="left", suffixes=("", "_duplicate4"))
+
+    print(design_df)
+    print(design_df.columns)
+
+    # save this df to pkl
+    design_df.to_pickle(os.path.join(evaluation_dir, "all_info.pkl"))
+    return design_df
+

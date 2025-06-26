@@ -224,7 +224,6 @@ def parse_boltz2_dir(main_dir: str, expect_ligand: bool = True) -> pd.DataFrame:
     Returns:
         DataFrame with columns:
           - sequence_name
-          - orientation_code
           - path_to_pdb
           - confidence_score, ptm, iptm, ...
           - chains_ptm_{chain}
@@ -246,9 +245,7 @@ def parse_boltz2_dir(main_dir: str, expect_ligand: bool = True) -> pd.DataFrame:
         pdb_path = seq_dir / f"{seq_dir.name}_model_0.pdb"
 
         # create initial dict
-        orientation_code = seq_dir.name.split("_yaw")[0]
         flat: dict = {
-            "orientation_code": orientation_code,
             "sequence_name": seq_dir.name,
             "path_to_pdb": str(pdb_path.resolve())
         }
@@ -277,12 +274,12 @@ def parse_boltz2_dir(main_dir: str, expect_ligand: bool = True) -> pd.DataFrame:
 
     df = pd.DataFrame(records)
     # order columns
-    cols = ["sequence_name", "orientation_code", "path_to_pdb"] + [c for c in df.columns if c not in ("sequence_name", "orientation_code", "path_to_pdb")]
+    cols = ["sequence_name", "path_to_pdb"] + [c for c in df.columns if c not in ("sequence_name", "path_to_pdb")]
     df = df[cols]
 
     # if no ligand, prefix remaining columns
     if not expect_ligand:
-        rename_map = {c: f"no_lig_{c}" for c in df.columns if c not in ("sequence_name", "orientation_code")}
+        rename_map = {c: f"no_lig_{c}" for c in df.columns if c not in ("sequence_name")}
         df = df.rename(columns=rename_map)
 
     return df
