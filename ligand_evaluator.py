@@ -1,60 +1,60 @@
 import os
 import re
 import subprocess
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+import multiprocessing
 
 import ampal
 import pandas as pd
 
 
-class DockEvaluator:
+def find_pdbs_in_dir(root: str) -> List[str]:
+    """Recursively find all .pdb files under root."""
+    pdbs = []
+    for dirpath, _, filenames in os.walk(root):
+        for fn in filenames:
+            if fn.lower().endswith('.pdb'):
+                pdbs.append(os.path.join(dirpath, fn))
+    return pdbs
+
+
+class MinimizeEvaluator:
     def __init__(
         self,
         pdb_files: List[str],
         ligand_resname: str,
-        flex_dist: float = 3.5,
-        flex_max: int = 5,
         output_dir: Optional[str] = None,
     ):
         """
         pdb_files: list of paths to input PDBs
-        ligand_resname: three-letter code of the ligand to isolate (e.g. "LIG")
-        flex_dist: radius (Å) around ligand within which to make side chains flexible
-        flex_max: maximum number of flexible residues to include
+        ligand_resname: three-letter code of the ligand (e.g. "LIG")
         output_dir: base folder to hold per-PDB result subfolders; defaults to cwd
         """
         self.pdb_files = pdb_files
         self.ligcode = ligand_resname
-        self.flex_dist = flex_dist
-        self.flex_max = flex_max
-        # set base output directory
         self.base_out = output_dir or os.getcwd()
         os.makedirs(self.base_out, exist_ok=True)
 
     def _prepare_dirs(self, prefix: str) -> str:
-        """Create and return a working directory for a single PDB prefix."""
         wd = os.path.join(self.base_out, prefix)
         os.makedirs(wd, exist_ok=True)
         return wd
 
     def _split(self, pdb: str, workdir: str) -> Dict[str, str]:
-        """Use AMPAL to write receptor- and ligand-only PDBs into workdir. Returns dict with paths."""
         asm = ampal.load_pdb(pdb)
         base = os.path.basename(pdb)
-        prefix = base[:-4] if base.lower().endswith('.pdb') else base
+        prefix = base[:-4]
 
-        # receptor: all polymers, no ligands
+        # write receptor without ligand
         rec_str = asm.make_pdb(ligands=False)
         rec_path = os.path.join(workdir, f"{prefix}_rec.pdb")
         with open(rec_path, "w") as f:
             f.write(rec_str)
 
-        # ligand: pick all non-solvent ligands matching code
+        # isolate ligand
         ligs = [m for m in asm.get_ligands(solvent=False) if m.mol_code == self.ligcode]
         if not ligs:
-            raise ValueError(f"No ligand with resname {self.ligcode} found in {pdb}")
-        if len(ligs) > 1:
-            raise ValueError(f"Multiple ligands with resname {self.ligcode} in {pdb}")
+            raise ValueError(f"No ligand {self.ligcode} in {pdb}")
         lig_str = ligs[0].make_pdb()
         lig_path = os.path.join(workdir, f"{prefix}_lig.pdb")
         with open(lig_path, "w") as f:
@@ -62,117 +62,104 @@ class DockEvaluator:
 
         return {"rec": rec_path, "lig": lig_path}
 
-    def _run_static(self, rec: str, lig: str, prefix: str, workdir: str) -> float:
-        """Score-only run, logs to file and returns best Vina affinity."""
-        logf = os.path.join(workdir, f"{prefix}_static.log")
-        cmd = [
-            "gnina", "-r", rec, "-l", lig,
-            "--autobox_ligand", lig,
-            "--score_only",
-            "--cnn_scoring", "none", "--scoring", "vina",
-            "--log", logf
-        ]
-        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode()
-        # parse from console output if no log created
-        scores = [float(x) for x in re.findall(r"(-?\d+\.\d+)", out)]
-        if not scores:
-            # try parsing log file
-            with open(logf) as f:
-                text = f.read()
-            scores = [float(x) for x in re.findall(r"(-?\d+\.\d+)", text)]
-        if not scores:
-            raise RuntimeError(f"No static scores parsed for {prefix}")
-        return min(scores)
+    def _run_minimize(self, rec: str, lig: str, prefix: str, workdir: str) -> Dict[str, float]:
+        """Run gnina minimization and parse affinity & intramolecular energy."""
+        out_pdb = os.path.join(workdir, f"{prefix}_min.pdb")
+        logf    = os.path.join(workdir, f"{prefix}_minimize.log")
 
-    def _run_flex(self, rec: str, lig: str, prefix: str, workdir: str) -> float:
-        """Flexible docking run; logs to file and returns best Vina affinity from the log."""
-        out_sdf = os.path.join(workdir, f"{prefix}_flex.sdf.gz")
-        logf    = os.path.join(workdir, f"{prefix}_flex.log")
         cmd = [
-            "gnina", "-r", rec, "-l", lig,
+            "gnina",
+            "-r", rec,
+            "-l", lig,
             "--autobox_ligand", lig,
-            "--flexdist_ligand", lig,
-            "--flexdist", str(self.flex_dist),
-            "--flex_max", str(self.flex_max),
-            "--cnn_scoring", "none", "--scoring", "vina",
-            "-o", out_sdf,
-            "--log", logf,
+            "--minimize",
+            "--scoring", "vina",
+            "-o", out_pdb,
+            "--log", logf
         ]
         subprocess.check_call(cmd, stderr=subprocess.DEVNULL)
 
+        # look for line like "Affinity:  -7.45776  -1.26423 (kcal/mol)"
         with open(logf) as f:
             text = f.read()
-        matches = re.findall(r"^\s*\d+\s+(-?\d+\.\d+)", text, re.MULTILINE)
-        scores = [float(s) for s in matches]
-        if not scores:
-            raise RuntimeError(f"No flexible-docking scores found in {logf}")
-        return min(scores)
+        m = re.search(
+            r"Affinity:\s*([\-\d\.]+)\s+([\-\d\.]+)\s+\(kcal/mol\)",
+            text
+        )
+        if not m:
+            raise RuntimeError(f"Could not parse energies in {logf}")
+        return {"affinity": float(m.group(1)), "intramolecular_energy": float(m.group(2))}
 
-    def evaluate(self) -> pd.DataFrame:
-        """
-        Loop over all PDBs, create per-file subfolder, do split + static + flex,
-        return a pandas DataFrame with columns:
-        ['pdb', 'static_affinity', 'flex_affinity', 'rec_file', 'lig_file', 'out_dir']
-        """
-        records = []
-        for pdb in self.pdb_files:
-            base = os.path.basename(pdb)
-            prefix = base[:-4] if base.lower().endswith('.pdb') else base
-            wd = self._prepare_dirs(prefix)
-            parts = self._split(pdb, wd)
-            static_score = self._run_static(parts["rec"], parts["lig"], prefix, wd)
-            flex_score   = self._run_flex(parts["rec"], parts["lig"], prefix, wd)
-            records.append({
-                "pdb": pdb,
-                "static_affinity": static_score,
-                "flex_affinity": flex_score,
-                "rec_file": parts["rec"],
-                "lig_file": parts["lig"],
-                "out_dir": wd
-            })
+    def _process_one(self, pdb: str) -> Dict[str, Any]:
+        prefix = os.path.splitext(os.path.basename(pdb))[0]
+        wd = self._prepare_dirs(prefix)
+        parts = self._split(pdb, wd)
+        energies = self._run_minimize(parts["rec"], parts["lig"], prefix, wd)
+        return {"pdb": pdb, **energies, "rec_file": parts["rec"], "lig_file": parts["lig"], "out_dir": wd}
+
+    def evaluate(self, n_procs: Optional[int] = None) -> pd.DataFrame:
+        # check duplicates
+        basenames = [os.path.basename(p) for p in self.pdb_files]
+        if len(set(basenames)) != len(basenames):
+            dup = [b for b in basenames if basenames.count(b) > 1]
+            raise ValueError(f"Duplicate basenames: {set(dup)}")
+
+        # parallel processing
+        pool = multiprocessing.Pool(processes=n_procs)
+        try:
+            records = pool.map(self._process_one, self.pdb_files)
+        finally:
+            pool.close()
+            pool.join()
+
         return pd.DataFrame(records)
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(
-        description="Evaluate a batch of PDBs with GNINA (static & side-chain flex docking)"
+        description="Minimize ligands in PDB(s) with GNINA"
     )
     parser.add_argument(
-        "pdbs", nargs="+",
-        help="Input PDB filenames (each must contain exactly one ligand of the specified code)"
+        "-p", "--pdb_dir", help="Recursively scan this directory for PDB files"
     )
     parser.add_argument(
-        "-l", "--ligcode", required=True,
-        help="Three-letter residue name of the ligand (e.g. LIG)"
+        "pdbs", nargs="*", help="Explicit PDB file paths"
     )
     parser.add_argument(
-        "--flex_dist", type=float, default=3.5,
-        help="Distance cutoff (Å) around ligand for flexible side chains"
+        "-l", "--ligcode", required=True, help="Three-letter ligand code"
     )
     parser.add_argument(
-        "--flex_max", type=int, default=5,
-        help="Maximum number of flexible residues to include"
+        "-d", "--output_dir", help="Base folder for results"
     )
     parser.add_argument(
-        "-o", "--out_csv", default="gnina_static_flex_affinity.csv",
-        help="Write summary table to CSV"
+        "-o", "--out_csv", default="gnina_minimize_summary.csv",
+        help="CSV summary filename"
     )
     parser.add_argument(
-        "-d", "--output_dir", default=None,
-        help="Base folder for per-PDB result subfolders"
+        "-n", "--n_procs", type=int, default=None,
+        help="Number of parallel processes (default: all available CPUs)"
     )
     args = parser.parse_args()
 
-    de = DockEvaluator(
-        pdb_files=args.pdbs,
+    # collect PDBs
+    to_process = []
+    if args.pdb_dir:
+        to_process.extend(find_pdbs_in_dir(args.pdb_dir))
+    if args.pdbs:
+        to_process.extend(args.pdbs)
+    if not to_process:
+        parser.error("Provide --pdb_dir or PDB file paths")
+    to_process = list(dict.fromkeys(to_process))
+
+    # run in parallel
+    me = MinimizeEvaluator(
+        pdb_files=to_process,
         ligand_resname=args.ligcode,
-        flex_dist=args.flex_dist,
-        flex_max=args.flex_max,
         output_dir=args.output_dir
     )
-    df = de.evaluate()
-    out_csv = os.path.join(de.base_out, args.out_csv)
-    df.to_csv(out_csv, index=False)
-    print(f"Done! Summary written to {out_csv}.")
-    print(f"Results folders under: {de.base_out}")
+    df = me.evaluate(n_procs=args.n_procs)
+    csv_path = os.path.join(me.base_out, args.out_csv)
+    df.to_csv(csv_path, index=False)
+    print(f"Done! Summary: {csv_path}")
+    print(f"Results folders under: {me.base_out}")
