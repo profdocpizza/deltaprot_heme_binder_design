@@ -26,7 +26,7 @@ from pipeline_utils import (
     build_heme_assembly,
     generate_incomplete_paths_csv,
     generate_rfdiffusionaa_inference_lines,
-    load_design_df,
+    generate_all_data_df,
     pipeline_data,
     choose_best_path_per_orientation,
 )
@@ -91,7 +91,7 @@ combinations = list(
 print(
     f"N combinations = {len(combinations)} x {len(paths_df)} = {len(combinations)*len(paths_df)}"
 )
-# build_heme_assemblies(paths_df, combinations)
+build_heme_assemblies(paths_df, combinations)
 
 
 # generate_rfdiffusionaa_inference_lines(
@@ -172,11 +172,11 @@ print("Now run the diffusion script to generate the assemblies.")
 
 
 
-# design_df = generate_design_df(assemblies_dir = pipeline_data["directories"]["assembly_output_dir"],
-#                      diffusion_dir = pipeline_data["directories"]["rf_diffusion_outputs"],
-#                      fold_HEM_dir_root= os.path.join(pipeline_data["directories"]["str_pred_outputs"],"outputs_HEM","boltz_results_inputs_HEM","predictions"),
-#                      fold_no_lig_dir_root = os.path.join(pipeline_data["directories"]["str_pred_outputs"],"outputs_no_lig","boltz_results_inputs_no_lig","predictions"),
-#                      save_dir = pipeline_data["directories"]["evaluation"],)
+design_df = generate_design_df(assemblies_dir = pipeline_data["directories"]["assembly_output_dir"],
+                     diffusion_dir = pipeline_data["directories"]["rf_diffusion_outputs"],
+                     fold_HEM_dir_root= os.path.join(pipeline_data["directories"]["str_pred_outputs"],"outputs_HEM","boltz_results_inputs_HEM","predictions"),
+                     fold_no_lig_dir_root = os.path.join(pipeline_data["directories"]["str_pred_outputs"],"outputs_no_lig","boltz_results_inputs_no_lig","predictions"),
+                     save_dir = pipeline_data["directories"]["evaluation"],)
 
 # align_df = align_all_structures(design_df,output_dir=pipeline_data["directories"]["evaluation"])
 
@@ -221,4 +221,4 @@ print("Now run the diffusion script to generate the assemblies.")
 # plt.savefig(os.path.join(pipeline_data["directories"]["str_pred_outputs"],"boltz2_folds_test.png"))
 
 
-load_design_df(pipeline_data["directories"]["evaluation"])
+# generate_all_data_df(pipeline_data["directories"]["evaluation"],os.path.join(pipeline_data["directories"]["seq_pred_outputs"],"selected_sequences.fasta"))

@@ -1,5 +1,6 @@
 import re
 import pandas as pd
+from sympy import sequence
 import yaml
 
 from isambard.specifications.deltaprot import HelixConformation
@@ -15,8 +16,9 @@ from dp_utils.helix_assembly.generate_and_score_all_paths import (
     build_permutations_df,
     generate_scored_path_csv,
 )
-
-
+from dp_utils.pipeline_data import get_pipeline_dp_finder_df
+from dp_utils.design_evaluation.model_df_generation import get_complexity_and_atp_cost_columns
+from dp_utils.design_evaluation.model_df_utils import calculate_rmsd100
 def load_pipeline_config():
     pipeline_config_path = (
         "/home/tadas/code/deltaprot_heme_binder_design/config/config.yaml"
@@ -44,21 +46,59 @@ def make_pipeline_dirs():
 
 make_pipeline_dirs()
 
+def read_fasta_to_df(fasta_path):
+
+    names = []
+    seqs = []
+    with open(fasta_path, 'r') as fh:
+        current_name = None
+        current_seq = []
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith('>'):
+                # save the previous record
+                if current_name is not None:
+                    names.append(current_name)
+                    seqs.append(''.join(current_seq))
+                current_name = line[1:]
+                current_seq = []
+            else:
+                current_seq.append(line)
+        # don't forget the last one
+        if current_name is not None:
+            names.append(current_name)
+            seqs.append(''.join(current_seq))
+
+    return pd.DataFrame({
+        'sequence_name': names,
+        'sequence': seqs
+    })
 
 def parse_filename(filename):
     pattern = re.compile(
-    r"^"
-    r"(?P<orientation_code>.+?)"
-    r"_yaw(?P<yaw>-?\d+)"
-    r"_rad(?P<radius>-?\d+)"
-    r"_delt(?P<deltahedron_size>\d+)"
-    r"_helix(?P<residues_per_helix>\d+)"
-    r"_link(?P<linker_length>\d+)"
-)
+        r"^"
+        r"(?P<orientation_code>.+?)"
+        r"_yaw(?P<yaw>-?\d+)"
+        r"_rad(?P<radius>-?\d+)"
+        r"_delt(?P<deltahedron_size>\d+)"
+        r"_helix(?P<residues_per_helix>\d+)"
+        r"_link(?P<linker_length>\d+)"
+    )
     match = pattern.match(filename)
     if not match:
-        raise ValueError(f"Filename does not match expected pattern: {filename}")
-    return match.groupdict()
+        raise ValueError(f"Filename does not match expected pattern: {filename!r}")
+    
+    gd = match.groupdict()
+    return {
+        'orientation_code':          gd['orientation_code'],
+        'yaw':                       float(gd['yaw']),
+        'radius':                    float(gd['radius']),
+        'deltahedron_size':          float(gd['deltahedron_size']),
+        'residues_per_helix':        int(gd['residues_per_helix']),
+        'linker_length':             int(gd['linker_length']),
+    }
 
 
 def generate_incomplete_paths_csv():
@@ -465,10 +505,36 @@ def generate_rfdiffusionaa_inference_lines(folder_path, output_script_path):
     print(f"Written {len(output_lines)} unique commands to {output_script_path}")
 
 
-def load_design_df(evaluation_dir):
+def generate_all_data_df(evaluation_dir,sequences_fasta_path):
+    
     # load design_df
     design_df = pd.read_csv(os.path.join(evaluation_dir, "design_df.csv"))
+    design_df = design_df.assign(**design_df["sequence_name"].apply(parse_filename).apply(pd.Series))
 
+    # load sequences
+    design_df = design_df.merge(
+        read_fasta_to_df(sequences_fasta_path),
+        on="sequence_name",
+        how="left",
+        suffixes=("", "_duplicate1"),
+    )
+
+    # add sequence features
+    design_df["mass"] = design_df["sequence"].apply(ampal.analyse_protein.sequence_molecular_weight)
+    design_df["sequence_length"] = design_df["sequence"].apply(len)
+    design_df["sequence_molar_extinction_280"] = design_df["sequence"].apply(ampal.analyse_protein.sequence_molar_extinction_280)
+    design_df["charge"] = design_df["sequence"].apply(ampal.analyse_protein.sequence_charge)
+    design_df["isoelectric_point"] = design_df["sequence"].apply(ampal.analyse_protein.sequence_isoelectric_point)
+    get_complexity_and_atp_cost_columns(design_df,sequence_col="sequence")
+
+    # add his tag prefix and recalculate features
+    design_df["sequence_w_prefix"] = "MGSSHHHHHHSSGENLYFQSGS" + design_df["sequence"]
+    design_df["mass_w_prefix"] = design_df["sequence_w_prefix"].apply(ampal.analyse_protein.sequence_molecular_weight)
+    design_df["sequence_length_w_prefix"] = design_df["sequence_w_prefix"].apply(len)
+    design_df["sequence_molar_extinction_280_w_prefix"] = design_df["sequence_w_prefix"].apply(ampal.analyse_protein.sequence_molar_extinction_280)
+    design_df["charge_w_prefix"] = design_df["sequence_w_prefix"].apply(ampal.analyse_protein.sequence_charge)
+    design_df["isoelectric_point_w_prefix"] = design_df["sequence_w_prefix"].apply(ampal.analyse_protein.sequence_isoelectric_point)
+    
     # load boltz2_info.csv and merge by sequence_name
     boltz2_df = pd.read_csv(os.path.join(evaluation_dir, "boltz2_info.csv"))
     # add prefix boltz2_ to all columns except sequence_name
@@ -490,24 +556,47 @@ def load_design_df(evaluation_dir):
         how="left",
         suffixes=("", "_duplicate2"),
     )
-    # load dp_finder_results_HEM.pkl
 
 
-    dp_finder_results_HEM_df = pd.read_pickle(os.path.join(evaluation_dir, "dp_finder_results_HEM.pkl"))
-    dp_finder_results_no_lig_df = pd.read_pickle(os.path.join(evaluation_dir, "dp_finder_results_no_lig.pkl"))
+    design_df["rmsd100"] = design_df.apply(
+        lambda row: calculate_rmsd100(row["rmsd"], row["sequence_length"]), axis=1
+    )
+    design_df["rmsd100_no_lig"] = design_df.apply(
+        lambda row: calculate_rmsd100(row["rmsd_no_lig"], row["sequence_length"]), axis=1
+    )   
+    design_df["rmsd100_diffusion"] = design_df.apply(
+        lambda row: calculate_rmsd100(row["rmsd_diffusion"], row["sequence_length"]), axis=1
+    )
+
+
+    # load esm log likelihood pll.csv
+    esm_log_likelihood_df = pd.read_csv(
+        os.path.join(evaluation_dir, "pll.csv")
+    ).rename(
+        columns={"name": "sequence_name"}
+    ).drop(columns=
+        ["sequence"]
+    )  
+    design_df = design_df.merge(
+        esm_log_likelihood_df,
+        on="sequence_name",
+        how="left",
+        suffixes=("", "_duplicate22"),
+    )
+    design_df["pll_per_aa"] = design_df["pll"] / design_df["sequence_length"]
+
+    # load dp_finder_results
+    dp_finder_results_HEM_df = get_pipeline_dp_finder_df(os.path.join(evaluation_dir, "dp_finder_results_HEM.pkl"),expect_missing_ribs=1)
+    dp_finder_results_no_lig_df = get_pipeline_dp_finder_df(os.path.join(evaluation_dir, "dp_finder_results_no_lig.pkl"),expect_missing_ribs=1)
+
+
     # generate sequence_name column for both dfs from filename by removing _model_0.pdb
-    dp_finder_results_HEM_df["sequence_name"] = dp_finder_results_HEM_df["filename"].str.replace("_model_0.pdb", "")
-    dp_finder_results_no_lig_df["sequence_name"] = dp_finder_results_no_lig_df["filename"].str.replace("_model_0.pdb", "")
+    dp_finder_results_HEM_df["sequence_name"] = dp_finder_results_HEM_df["dp_finder_filename"].str.replace("_model_0.pdb", "")
+    dp_finder_results_no_lig_df["sequence_name"] = dp_finder_results_no_lig_df["dp_finder_filename"].str.replace("_model_0.pdb", "")
     # drop filename column from both dfs
-    dp_finder_results_HEM_df.drop(columns=["filename"], inplace=True)
-    dp_finder_results_no_lig_df.drop(columns=["filename"], inplace=True)
-    # add prefix dp_finder_ to all columns of both dfs
-    dp_finder_results_HEM_df.columns = [
-        f"dp_finder_{col}" if col != "sequence_name" else col for col in dp_finder_results_HEM_df.columns
-    ]
-    dp_finder_results_no_lig_df.columns = [
-        f"dp_finder_{col}" if col != "sequence_name" else col for col in dp_finder_results_no_lig_df.columns
-    ]
+    dp_finder_results_HEM_df.drop(columns=["dp_finder_filename"], inplace=True)
+    dp_finder_results_no_lig_df.drop(columns=["dp_finder_filename"], inplace=True)
+
     # add prefix no_lig_ to all columns of  dp_finder_results_no_lig_df
     dp_finder_results_no_lig_df.columns = [
         f"no_lig_{col}" if col != "sequence_name" else col for col in dp_finder_results_no_lig_df.columns
@@ -516,6 +605,18 @@ def load_design_df(evaluation_dir):
     design_df = design_df.merge(dp_finder_results_HEM_df, on="sequence_name", how="left", suffixes=("", "_duplicate3"))
     design_df = design_df.merge(dp_finder_results_no_lig_df, on="sequence_name", how="left", suffixes=("", "_duplicate4"))
 
+    # load netsolp.csv
+    netsolp_df = pd.read_csv(os.path.join(evaluation_dir, "netsolp.csv")).rename(
+        columns={"sid": "sequence_name"}
+    )[["sequence_name","predicted_usability"]]
+    design_df = design_df.merge(
+        netsolp_df,
+        on="sequence_name",
+        how="left",
+        suffixes=("", "_duplicate5"),
+    )
+
+
     print(design_df)
     print(design_df.columns)
 
@@ -523,3 +624,89 @@ def load_design_df(evaluation_dir):
     design_df.to_pickle(os.path.join(evaluation_dir, "all_info.pkl"))
     return design_df
 
+
+gene_synthesis_cols = ["Well Position","Name","Sequence"]
+sharing_cols = gene_synthesis_cols + [
+    "orientation_code",
+    "isoelectric_point",
+    "charge",
+    "mass",
+    "sequence_length",
+    "mean_plddt",
+    "mean_pae",
+    "ptm",
+    "tm_rmsd100",
+    "dp_finder_total_cost",
+    "sequence_molar_extinction_280",
+    "model_sequence"
+]
+metrics_cols = [
+    "orientation_code",
+    "atp_cost_per_aa",
+    "atp_cost",
+    "dna_complexity_per_aa",
+    "pll",
+    "pll_per_aa",
+    "isoelectric_point",
+    "charge",
+    # "sequence_charge" redundant to charge
+    "mass",
+    "sequence_length",
+    "mean_plddt",
+    "mean_pae",
+    "ptm",
+    "tm_rmsd",
+    "tm_score_assembly",
+    "tm_score_design",
+    "tm_rmsd100",
+    # "n_potential_disulfide_bonds",
+    "dp_finder_total_cost",
+    "dp_finder_total_scale",
+
+    "predicted_usability",
+    "combined_score",
+    "path_score_version",
+    "residues_per_helix",
+    "deltahedron_edge_length",
+    "diffuse_termini",
+    "avoid_amino_acids",
+    "increase_amino_acid_likelihood",
+    "energy_minimization",
+    "algorithms_sequence_prediction",
+    "algorithms_structure_prediction",
+    "rf_file_num",
+    "rib_num",
+    "aa_count_per_gap",
+    "model_sequence",
+    "sequence_molar_extinction_280",
+    # "sequence_molecular_weight", # redundant to mass
+    "backbone_loop_mask_string",
+    "aligned_length",
+    "seq_id",
+    "sequence_name",
+    "dssp_assignment",
+    "aggrescan3d_avg_value",
+    "hydrophobic_fitness",
+    "packing_density",
+    "rosetta_total_per_aa",
+    "name",
+    "overall_distance_score_v2",
+    "overall_path_distance_score_v2",
+    "overall_contact_order_score",
+    "overall_linker_convenience_score",
+    "overall_linker_convenience_v2_score",
+    "path_score_v2",
+    "path_score_v3",
+]
+
+composition_cols = [f"composition_{aa}" for aa in [
+    "PHE", "TYR", "TRP", "GLY", "ALA", "VAL", "LEU", "ILE", "MET", "CYS",
+    "PRO", "THR", "SER", "ASN", "GLN", "ASP", "GLU", "LYS", "ARG", "HIS"
+]]
+
+useful_cols = gene_synthesis_cols + metrics_cols + composition_cols
+
+useful_cols_non_csv = useful_cols + [
+    "taylor_letter_packing_descriptors",
+    "chothia_omega_angles",
+] 
