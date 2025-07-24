@@ -1,4 +1,6 @@
 import re
+from dp_utils.functions import get_rib_num
+from matplotlib.pylab import f
 import pandas as pd
 from sympy import sequence
 import yaml
@@ -6,7 +8,7 @@ import yaml
 from isambard.specifications.deltaprot import HelixConformation
 import ampal
 
-from dp_utils.helix_assembly.utils import apply_transform_to_assembly
+from dp_utils.helix_assembly.utils import apply_transform_to_assembly, get_terminus_linker_length_from_linker_length
 import os
 
 import numpy as np
@@ -19,16 +21,14 @@ from dp_utils.helix_assembly.generate_and_score_all_paths import (
 from dp_utils.pipeline_data import get_pipeline_dp_finder_df
 from dp_utils.design_evaluation.model_df_generation import get_complexity_and_atp_cost_columns
 from dp_utils.design_evaluation.model_df_utils import calculate_rmsd100
-def load_pipeline_config():
-    pipeline_config_path = (
-        "/home/tadas/code/deltaprot_heme_binder_design/config/config.yaml"
-    )
-    with open(pipeline_config_path) as f:
+
+def load_pipeline_config(config_path):
+    with open(config_path) as f:
         pipeline_data = yaml.load(f, Loader=yaml.FullLoader)
     return pipeline_data
 
 
-pipeline_data = load_pipeline_config()
+pipeline_data = load_pipeline_config(config_path="/home/tadas/code/deltaprot_heme_binder_design/config/config_2.yaml")
 
 
 def make_pipeline_dirs():
@@ -434,7 +434,120 @@ def get_rib_align_transform(assembly, rib_vertices=(8, 11)):
     return R.T
 
 
-def generate_rfdiffusionaa_inference_lines(folder_path, output_script_path):
+def generate_contigs(rib_num, linker_length, aa, diffuse_termini=False):
+    """
+    Returns:
+      contig_str: e.g. "A1-10,5-5,B1-10,5-5,C1-10" (with optional terminal linkers)
+      total_len:  integer total residues including helices, inter-helical linkers,
+                 and optional terminal linkers
+    """
+    chainIds = ["A","B","C","D","E","F"][:rib_num]
+    helix_spans = [f"{c}1-{aa}" for c in chainIds]
+    linker_span = f"{linker_length}-{linker_length}"
+    
+    # interleave helices with linkers
+    contig_elems = []
+    for i, span in enumerate(helix_spans):
+        if i > 0:
+            contig_elems.append(linker_span)
+        contig_elems.append(span)
+    contig_str = ",".join(contig_elems)
+    
+    # handle diffuse termini
+    term_l = 0
+    if diffuse_termini:
+        term_l = get_terminus_linker_length_from_linker_length(linker_length)
+        if term_l > 0:
+            contig_str = f"{term_l},{contig_str},{term_l}"
+    
+    # compute total length
+    total_len = rib_num * aa                      # all helix residues
+    total_len += (rib_num - 1) * linker_length    # between-helices linkers
+    total_len += 2 * term_l                       # terminal linkers if any
+    
+    return f"'{contig_str}'" if diffuse_termini else contig_str, total_len
+
+def generate_inpaint_seq(rib_num, aa):
+    chainIds = ["A","B","C","D","E","F"]
+    spans = []
+    for i in range(rib_num):
+        spans.append(f"{chainIds[i]}1-{aa}")
+    return ",".join(spans)     # e.g. "A1-10,B1-10"
+
+# def generate_rfdiffusionaa_inference_lines(folder_path, output_script_path, diffuse_termini):
+#     seen_lines = set()
+#     output_lines = []
+
+#     for fname in sorted(os.listdir(folder_path)):
+#         if not fname.endswith(".pdb"):
+#             continue
+
+#         parsed = parse_filename(fname)
+#         if not parsed:
+#             print(f"Skipping: {fname} (pattern mismatch)")
+#             continue
+
+#         orientation_code = parsed["orientation_code"]
+#         yaw = parsed["yaw"]
+#         radius = parsed["radius"]
+#         deltahedron_size = parsed["deltahedron_size"]
+#         residues_per_helix = int(parsed["residues_per_helix"])
+#         linker_length = int(parsed["linker_length"])
+
+#         n_helix = int(orientation_code[1]) - 1
+#         helices = [chr(ord("A") + i) for i in range(n_helix)]
+
+#         # inpaint_seq
+#         inpaint_seq = ",".join(f"{h}1-{residues_per_helix}" for h in helices)
+#         inpaint_seq = f"'{inpaint_seq}'"
+#         # contigs with linker
+#         # linker_start = residues_per_helix + 1
+#         # linker_end = linker_start + linker_length - 1
+#         contig_parts = [
+#             f"{h}1-{residues_per_helix},{linker_length}-{linker_length}"
+#             for h in helices[:-1]
+#         ]
+#         contig_parts.append(f"{helices[-1]}1-{residues_per_helix}")
+#         contigs = ",".join(contig_parts)
+#         contigs = f"'{contigs}'"
+#         # total length
+#         total_length = n_helix * residues_per_helix + (n_helix - 1) * linker_length
+
+#         pdb_path = os.path.join(folder_path, fname)
+#         output_prefix = os.path.join(
+#             pipeline_data["directories"]["rf_diffusion_outputs"],
+#             "outputs",
+#             fname.replace(".pdb", ""),
+#         )
+
+#         line = (
+#             f"PYTHONHASHSEED=1 "
+#             f"python run_inference.py inference.deterministic=True diffuser.T=20 "
+#             f"inference.output_prefix={output_prefix} "
+#             f"inference.input_pdb={pdb_path} "
+#             f'contigmap.inpaint_seq="[{inpaint_seq}]" '
+#             f'contigmap.contigs="[{contigs}]" '
+#             f'contigmap.length="{total_length}-{total_length}" '
+#             f"inference.ligand=HEM inference.num_designs=1 inference.design_startnum=0"
+#         )
+
+#         if line not in seen_lines:
+#             seen_lines.add(line)
+#             output_lines.append(line)
+
+#     # assert no duplicates
+#     assert len(output_lines) == len(seen_lines), "Duplicate lines found!"
+#     # Write to shell script
+#     with open(output_script_path, "w") as f:
+#         for line in output_lines:
+#             f.write(line + "\n")
+
+#     print(f"Written {len(output_lines)} unique commands to {output_script_path}")
+def generate_rfdiffusionaa_inference_lines(
+    folder_path,
+    output_script_path,
+    diffuse_termini=False,
+):
     seen_lines = set()
     output_lines = []
 
@@ -447,63 +560,58 @@ def generate_rfdiffusionaa_inference_lines(folder_path, output_script_path):
             print(f"Skipping: {fname} (pattern mismatch)")
             continue
 
-        orientation_code = parsed["orientation_code"]
-        yaw = parsed["yaw"]
-        radius = parsed["radius"]
-        deltahedron_size = parsed["deltahedron_size"]
+        orientation_code   = parsed["orientation_code"]
         residues_per_helix = int(parsed["residues_per_helix"])
-        linker_length = int(parsed["linker_length"])
+        linker_length      = int(parsed["linker_length"])
 
-        n_helix = int(orientation_code[1]) - 1
-        helices = [chr(ord("A") + i) for i in range(n_helix)]
+        # number of helices/ribs
+        n_helix = get_rib_num(orientation_code) -1
 
-        # inpaint_seq
-        inpaint_seq = ",".join(f"{h}1-{residues_per_helix}" for h in helices)
-        inpaint_seq = f"'{inpaint_seq}'"
-        # contigs with linker
-        # linker_start = residues_per_helix + 1
-        # linker_end = linker_start + linker_length - 1
-        contig_parts = [
-            f"{h}1-{residues_per_helix},{linker_length}-{linker_length}"
-            for h in helices[:-1]
-        ]
-        contig_parts.append(f"{helices[-1]}1-{residues_per_helix}")
-        contigs = ",".join(contig_parts)
-        contigs = f"'{contigs}'"
-        # total length
-        total_length = n_helix * residues_per_helix + (n_helix - 1) * linker_length
+        # build the gap string for linkers, e.g. "5-5"
+        gap = f"{linker_length}-{linker_length}"
+
+        # use your helpers
+        inpaint_seq = generate_inpaint_seq(n_helix, residues_per_helix)
+        contigs, total_length = generate_contigs(n_helix, linker_length, residues_per_helix, diffuse_termini)
+
+        # # total length for contigmap.length
+        # total_length = (
+        #     n_helix * residues_per_helix
+        #     + (n_helix - 1) * linker_length
+        # )
 
         pdb_path = os.path.join(folder_path, fname)
         output_prefix = os.path.join(
             pipeline_data["directories"]["rf_diffusion_outputs"],
             "outputs",
-            fname.replace(".pdb", ""),
+            fname[:-4],  # strip ".pdb"
         )
 
+        # wrap your comma‑lists in "[…]" for the CLI, and single‑quote them
         line = (
-            f"PYTHONHASHSEED=1 "
-            f"python run_inference.py inference.deterministic=True diffuser.T=20 "
+            "PYTHONHASHSEED=1 "
+            "python run_inference.py inference.deterministic=True diffuser.T=20 "
             f"inference.output_prefix={output_prefix} "
             f"inference.input_pdb={pdb_path} "
             f'contigmap.inpaint_seq="[{inpaint_seq}]" '
             f'contigmap.contigs="[{contigs}]" '
             f'contigmap.length="{total_length}-{total_length}" '
-            f"inference.ligand=HEM inference.num_designs=1 inference.design_startnum=0"
+            "inference.ligand=HEM inference.num_designs=1 inference.design_startnum=0"
         )
 
         if line not in seen_lines:
             seen_lines.add(line)
             output_lines.append(line)
 
-    # assert no duplicates
+    # sanity check
     assert len(output_lines) == len(seen_lines), "Duplicate lines found!"
-    # Write to shell script
-    with open(output_script_path, "w") as f:
-        for line in output_lines:
-            f.write(line + "\n")
+
+    # write out
+    with open(output_script_path, "w") as out:
+        for l in output_lines:
+            out.write(l + "\n")
 
     print(f"Written {len(output_lines)} unique commands to {output_script_path}")
-
 
 def generate_all_data_df(evaluation_dir,sequences_fasta_path):
     
@@ -542,6 +650,17 @@ def generate_all_data_df(evaluation_dir,sequences_fasta_path):
         f"boltz2_{col}" if col != "sequence_name" else col for col in boltz2_df.columns
     ]
     # merge design_df with boltz2_df on sequence_name
+    def pred_to_dG_kcal(y):
+        # y is log10(IC50 in µM); pIC50 = 6 - y; ΔG = -1.364 * pIC50
+        return -1.364 * (6 - y)
+
+    # create new kcal/mol columns
+    for c in [
+        'boltz2_affinity_pred_value',
+        'boltz2_affinity_pred_value1',
+        'boltz2_affinity_pred_value2'
+    ]:
+        boltz2_df[c + '_kcal_mol'] = pred_to_dG_kcal(boltz2_df[c])
 
     design_df = design_df.merge(
         boltz2_df,
@@ -616,6 +735,27 @@ def generate_all_data_df(evaluation_dir,sequences_fasta_path):
         suffixes=("", "_duplicate5"),
     )
 
+    # load gnina csv
+    gnina_df = pd.read_csv(os.path.join(evaluation_dir, "gnina_evaluation", "gnina_minimize_summary.csv"))
+    gnina_df["sequence_name"] = gnina_df["pdb"].str.split("/").str[-2]
+    gnina_df = gnina_df[["sequence_name","affinity","intramolecular_energy"]].rename(columns={"affinity":"gnina_affinity","intramolecular_energy":"gnina_intramolecular_energy"})
+    design_df = design_df.merge(
+        gnina_df,
+        on="sequence_name",
+        how="left",
+        suffixes=("", "_duplicate6"),
+    )
+
+    # load heme_binding_residues_check.csv
+    heme_binding_res_df = pd.read_csv(os.path.join(evaluation_dir, "heme_binding_residues_check.csv"))
+    heme_binding_res_df["sequence_name"] = heme_binding_res_df["file_path"].str.split("/").str[-2]
+    heme_binding_res_df = heme_binding_res_df[["sequence_name","heme_binding_residues_present"]]
+    design_df = design_df.merge(
+        heme_binding_res_df,
+        on="sequence_name",
+        how="left",
+        suffixes=("", "_duplicate7"),
+    )
 
     print(design_df)
     print(design_df.columns)

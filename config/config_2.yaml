@@ -1,5 +1,4 @@
 params:
-
   n_orientations: 30
   n_best_paths: 1
   n_flips: 1
@@ -8,6 +7,7 @@ params:
   deltahedron_sizes: [12]
   residues_per_helix: [8]
   loop_lengths: [8, 9, 10, 11, 12, 13]
+  diffuse_termini: True # New
 
 ligand:
   name: "heme"
@@ -17,15 +17,14 @@ ligand:
   yaw_axis: z
 
 
-
 directories:
-  path_choice_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs/1_path_choices"
-  assembly_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs/2_assemblies"
-  rf_diffusion_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/3_diffusion"
-  seq_pred_inputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/4_sequence_prediction/fixed_inputs"
-  seq_pred_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/4_sequence_prediction/"
-  str_pred_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs/5_structure_prediction/"
-  evaluation: "/home/tadas/code/deltaprot_heme_binder_design/outputs/6_evaluation"
+  path_choice_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs_2/1_path_choices"
+  assembly_output_dir: "/home/tadas/code/deltaprot_heme_binder_design/outputs_2/2_assemblies"
+  rf_diffusion_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs_2/3_diffusion"
+  seq_pred_inputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs_2/4_sequence_prediction/fixed_inputs"
+  seq_pred_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs_2/4_sequence_prediction/"
+  str_pred_outputs: "/home/tadas/code/deltaprot_heme_binder_design/outputs_2/5_structure_prediction/"
+  evaluation: "/home/tadas/code/deltaprot_heme_binder_design/outputs_2/6_evaluation"
   # analysis_output_dir: "pipeline_outputs/analysis/"
   # design_selection_1_dir: "pipeline_outputs/design_selection_1/"
 
@@ -33,7 +32,5 @@ install_dirs:
   rf_diffusion: "/home/tadas/code/RFdiffusion"
   deltaProteins: "/home/tadas/deltaProteins" # repository root folder
   proteinmpnn: "/home/tadas/code/ProteinMPNN" # 
-  timed: "/home/tadas/bin/timed-design"
   # alphafold2: "/home/tadas/bin/alphafold2"
   # omegafold: "/home/tadas/bin/omegafold"
-  tm_align: "/home/tadas/bin/TMalign" # folder that contains TMalign executable

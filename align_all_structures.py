@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import ampal
-from dp_utils.helix_assembly.utils import align_P_to_Q_point_set,apply_transform_to_assembly, calculate_rmsd
+from dp_utils.helix_assembly.utils import align_P_to_Q_point_set,apply_transform_to_assembly, calculate_rmsd, get_terminus_linker_length_from_linker_length
 
 import numpy as np
 import pandas as pd
@@ -244,25 +244,36 @@ def generate_design_df(assemblies_dir, diffusion_dir, fold_HEM_dir_root, fold_no
     df.to_csv(Path(save_dir) / "design_df.csv", index=False)
     return df
 
-def generate_parametric_residue_mask(n_select, n_skip, n_ribs):
+def generate_parametric_residue_mask(n_select: int,
+                                     n_skip: int,
+                                     n_ribs: int,
+                                     diffuse_termini: bool) -> list:
     """
-    Generate a mask of length:
-      n_ribs*n_select + (n_ribs-1)*n_skip
+    Generate a boolean mask of length:
+      n_ribs * n_select + (n_ribs - 1) * n_skip
 
     Pattern:
-      [True]*n_select,
-      [False]*n_skip,
-      [True]*n_select,
+      [True] * n_select,
+      [False] * n_skip,
+      [True] * n_select,
       …
-      [True]*n_select    # last block, no skip after
+      [True] * n_select    # last block, no skip after
+
+    If diffuse_termini is True:
+      prepend and append term_l falses, where
+      term_l = get_terminus_linker_length_from_linker_length(linker_length)
     """
     mask = []
     for rib in range(n_ribs):
-        # select block
-        mask.extend([True]  * n_select)
-        # skip block (except after the final rib)
+        mask.extend([True] * n_select)
         if rib < n_ribs - 1:
             mask.extend([False] * n_skip)
+
+    if diffuse_termini:
+        # compute number of terminal linkage positions
+        term_l = get_terminus_linker_length_from_linker_length(n_skip)
+        mask = [False] * term_l + mask + [False] * term_l
+
     return mask
 
 

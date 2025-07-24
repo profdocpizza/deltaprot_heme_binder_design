@@ -106,7 +106,6 @@ def main():
     # 5. Annotate interactions
     # -------------------------
     annotate_hbonds("all")
-    annotate_pi_pi("all")
     annotate_salt_bridges("all")
     
     # Optional: Adjust global dash settings for the annotated bonds.
